@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>推箱子·小工程师的仓库挑战 | 四年级编程思维游戏</title>
+    <style>
+        * {
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(145deg, #1e5a3a 0%, #0f3b24 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Comic Neue', 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .game-wrapper {
+            background: #d9b382;
+            padding: 25px 30px 20px 30px;
+            border-radius: 65px;
+            box-shadow: 0 20px 0 #7a4c2c, inset 0 1px 4px rgba(255,255,200,0.8);
+        }
+        .game-container {
+            background: #2c1e12;
+            padding: 20px;
+            border-radius: 35px;
+            display: inline-block;
+            box-shadow: inset 0 0 0 3px #f7e5b5, 0 10px 20px rgba(0,0,0,0.3);
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 20px;
+            background-color: #ecd9b4;
+            box-shadow: 0 6px 0 #5a3a22;
+            cursor: pointer;
+        }
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 18px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .level-box {
+            background: #2d2218;
+            color: #ffdd99;
+            padding: 6px 18px;
+            border-radius: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: monospace;
+            letter-spacing: 2px;
+            box-shadow: inset 0 1px 3px #826a48, 0 3px 0 #2a1a0c;
+        }
+        button {
+            background: #ffbb77;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 6px 18px;
+            border-radius: 50px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: 0.1s linear;
+            box-shadow: 0 4px 0 #a5622c;
+            color: #2e241a;
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #a5622c;
+        }
+        .message {
+            background: #000000aa;
+            backdrop-filter: blur(8px);
+            padding: 6px 14px;
+            border-radius: 32px;
+            color: #ffe6b3;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .controls {
+            background: #2d241cb3;
+            border-radius: 50px;
+            padding: 5px 12px;
+            color: #fdebb3;
+            font-size: 14px;
+        }
+        @media (max-width: 550px) {
+            .game-wrapper { padding: 15px; }
+            .level-box { font-size: 18px; }
+            button { font-size: 16px; padding: 4px 12px; }
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-wrapper">
+        <div class="game-container">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+        </div>
+        <div class="info-bar">
+            <div class="level-box">📦 第 <span id="levelNum">1</span> / <span id="totalLevels">3</span> 关</div>
+            <button id="resetBtn">🔄 重置关卡</button>
+            <div class="message">⭐ 把箱子推到星光上 ⭐</div>
+        </div>
+        <div class="controls" style="margin-top: 12px; text-align:center;">
+            🎮 方向键移动 | R 键重置当前关 | 全部通关会有烟花彩蛋！
+        </div>
+    </div>
+</div>
+
+<script>
+    // ----- 预置关卡 ( 推箱子经典三关, 使用二维数组, 字符含义见下方 )
+    // 图例: '#' 墙  ' ' 空地  '@' 玩家  '+' 玩家站在目标点  '$' 箱子  '*' 箱子在目标点  '.' 目标点
+    const levels = [
+        // 关卡1: 最简单, 4x5 但为了视觉统一扩展到 8x8 (四周留墙)
+        [
+            "########",
+            "#      #",
+            "#  $   #",
+            "#  .   #",
+            "#  @   #",
+            "#      #",
+            "#      #",
+            "########"
+        ],
+        // 关卡2: 需要绕一小下
+        [
+            "########",
+            "#      #",
+            "#  $   #",
+            "#  .   #",
+            "#   @  #",
+            "#      #",
+            "#      #",
+            "########"
+        ],
+        // 关卡3: 两个箱子+两个目标点 (经典微型)
+        [
+            "########",
+            "#      #",
+            "#  $   #",
+            "#  .   #",
+            "#  $   #",
+            "#  .   #",
+            "#    @ #",
+            "########"
+        ]
+    ];
+    
+    // 使所有关卡尺寸统一为 8x8 (确保推箱子逻辑稳健)
+    // 但实际上面的都是8x8, 直接使用。
+    // 动态扩展一下第三关稍微调整目标点颜色（不需要，本来就是好的）
+    // 为了让第三关更有意思, 优化成合理的可解布局（上面已可解）
+    // 但不放心：手动调整第三关让玩法流畅 (已经可解，玩家需要把左右两个箱子推到左右目标)
+    // 改为更合理的标准微型双箱子:
+    const betterLevel3 = [
+        "########",
+        "#  .   #",
+        "#  $   #",
+        "#      #",
+        "#  $   #",
+        "#  .   #",
+        "#    @ #",
+        "########"
+    ];
+    levels[2] = betterLevel3;  // 替换第三关为对称有趣版本
+    
+    // 游戏状态
+    let currentLevel = 0;          // 索引0开始
+    let levelMap = [];              // 二维数组存储当前地图(字符)
+    let playerX = -1, playerY = -1;
+    let boxCount = 0;              // 箱子总数
+    let boxesOnTarget = 0;        // 已放对位置的箱子数
+    
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelNumSpan = document.getElementById('levelNum');
+    const totalLevelsSpan = document.getElementById('totalLevels');
+    const resetBtn = document.getElementById('resetBtn');
+    
+    const CELL_SIZE = 50;  // 400/8 = 50px
+    
+    // 初始化总关卡显示
+    totalLevelsSpan.innerText = levels.length;
+    
+    // 加载指定关卡 (索引 idx)
+    function loadLevel(idx) {
+        // 深拷贝原始关卡字符串数组
+        const raw = levels[idx];
+        levelMap = raw.map(row => row.split(''));
+        // 寻找玩家位置，统计箱子数和目标点数，并初始化对位箱子计数
+        playerX = -1; playerY = -1;
+        boxCount = 0;
+        let targetCount = 0;
+        boxesOnTarget = 0;
+        
+        for (let row = 0; row < levelMap.length; row++) {
+            for (let col = 0; col < levelMap[row].length; col++) {
+                const ch = levelMap[row][col];
+                if (ch === '@' || ch === '+') {
+                    playerX = col;
+                    playerY = row;
+                    // 统一将玩家坐标存储为 @ 样式 (如果是目标点上的玩家保留逻辑)
+                    if (ch === '+') levelMap[row][col] = '.';  // 先还原目标点
+                    else levelMap[row][col] = ' ';
+                }
+                if (ch === '$' || ch === '*') boxCount++;
+                if (ch === '.' || ch === '+' || ch === '*') targetCount++;
+            }
+        }
+        // 重新设置玩家实际位置 和 地图标准化 (玩家字符单独维护)
+        // 但需要二次修正: 确保玩家站位正确
+        for (let row = 0; row < levelMap.length; row++) {
+            for (let col = 0; col < levelMap[row].length; col++) {
+                let ch = levelMap[row][col];
+                if (ch === '@') {
+                    playerX = col; playerY = row;
+                    levelMap[row][col] = ' ';  // 清空，因为我们用动态玩家绘制
+                } el
